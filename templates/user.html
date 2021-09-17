@@ -5,6 +5,7 @@
     <!-- Webpage Title -->
     <title>{{ user_info.name }} | SWEETER</title>
 
+
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -22,10 +23,20 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.js"></script>
     <script src="{{ url_for('static', filename='myjs.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bs-custom-file-input/dist/bs-custom-file-input.js"></script>
     <script>
         $(document).ready(function () {
+            cookie_check()
             get_posts();
         })
+
+        function cookie_check() {
+            let cookie = $.cookie('mytoken');
+            if (cookie == null) {
+                alert('로그인 정보가 존재하지 않습니다.')
+                window.location.replace("/login")
+            }
+        }
     </script>
     <script>
         function sign_out() {
@@ -34,13 +45,18 @@
             window.location.href = "/login"
         }
 
-        function del(nic) {
+        function del(board_id) {
+            console.log(board_id)
             $.ajax({
-                type:'POST',
-                url:'/api/delete',
-                data:{memberId_give:nic},
+                type: 'POST',
+                url: '/api/boards/delete',
+                data: {
+                    board_id_give: board_id,
+                    member_id_give: '{{ user_info.username }}'
+                },
                 success: function (response) {
                     alert(response['msg']);
+                    window.location.reload()
                 }
             })
         }
@@ -48,14 +64,15 @@
         function update_profile() {
             let name = $('#input-name').val()
             let email = $('#input-email').val()
-            let file = $('#input-pic')[0].files[0]
             let about = $("#textarea-about").val()
+
+            let file = $('#input-pic')[0].files[0]
             let form_data = new FormData()
-            form_data.append("file_give", file)
+
             form_data.append("name_give", name)
+            form_data.append("email_give", email)
+            form_data.append("file_give", file)
             form_data.append("about_give", about)
-            form_data.append("email_give", about)
-            console.log(name, file, about, form_data, email)
 
             $.ajax({
                 type: "POST",
@@ -74,38 +91,68 @@
             });
         }
 
-        function get_posts() {
+        function time2str(date) {
+            let today = new Date()
+            let time = (today - date) / 1000 / 60  // 분
 
+            if (time < 60) {
+                return parseInt(time) + "분 전"
+            }
+            time = time / 60  // 시간
+            if (time < 24) {
+                return parseInt(time) + "시간 전"
+            }
+            time = time / 24
+            if (time < 7) {
+                return parseInt(time) + "일 전"
+            }
+            return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
+        }
+
+        function get_posts() {
             $.ajax({
                 type: "GET",
-                url: "/api/board",
+                url: "/api/boards/{{ user_info.username }}",
                 data: {},
                 success: function (response) {
-                    let articles = response['all_article']
+                    let articles = response['articles']
                     $('#post-box').empty()
                     for (let i = 0; i < articles.length; i++) {
+                        let boardId = articles[i]['_id']
                         let title = articles[i]['title']
                         let memberId = articles[i]['memberId']
                         let content = articles[i]['content']
-                        let emotion_receive = articles[i]['emotion_receive']
+                        let emotion_receive = articles[i]['emotion']
                         let modifiedDate = articles[i]['modifiedDate']
-                        let temp_html = `<article class="media" style="margin: 0px auto 20px auto; padding:20px; width: 800px; background-color:powderblue; border:solid; border-color: powderblue; border-radius: 40px;">
+                        let emotion_html = '';
+                        if (emotion_receive == 'nice') emotion_html = `<i class="fa fa-smile-o fa-3x" aria-hidden="true"></i>`
+                        else if (emotion_receive == 'normal') emotion_html = `<i class="fa fa-meh-o fa-3x" aria-hidden="true"></i>`
+                        else emotion_html = `<i class="fa fa-frown-o fa-3x" aria-hidden="true"></i>`
+
+                        let time_post = new Date(modifiedDate)
+                        let time_before = time2str(time_post)
+                        let temp_html = `<article id="board_id_${boardId}" class="media" style="margin: 0px auto 20px auto; padding:20px; width: 800px; background-color:RGBA(92, 188, 218, 0.5); border:solid; border-color: powderblue; border-radius: 40px;">
                                             <figure class="media-left">
                                                 <p class="image is-64x64">
                                                     <img src="https://bulma.io/images/placeholders/128x128.png">
                                                 </p>
                                             </figure>
                                             <div class="media-content">
-                                                <div class="content">
+                                                <div class="content media-right card_emotion">
                                                     <p>
-                                                        <strong>${title}</strong> <small>${memberId}</small> <small>${modifiedDate}</small>
+                                                        <strong>${title}</strong> <small>${memberId}</small> <small>${time_before}</small>
+                                                    <a onclick="del('${boardId}')">
+                                                    <i class="fa fa-trash-o" aria-hidden="true"></i>
+                                                </a>
                                                         <br>
-                                                        ${content}${emotion_receive}
+                                                        ${content}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div class="media-right">
-                                                <i onclick="del()" class="fa fa-trash-o" aria-hidden="true"></i>
+                                            <div class="media-right ">
+                                                ${emotion_html}
+                                            </div>
+
                                             </div>
                                         </article>`
 
@@ -115,30 +162,37 @@
             })
         }
 
+        function home() {
+            if (window.localStorage.getItem('post_state') == "posted") {
+                window.location.href = "/"
+            } else {
+                window.location.href = "/boards/form"
+            }
+        }
     </script>
     <style>
-
+        .card_emotion {
+            margin: auto;
+        }
     </style>
 
 </head>
 <body class="has-navbar-fixed-top">
 <nav class="navbar is-fixed-top is-white" role="navigation" aria-label="main navigation">
-    <div class="navbar-brand">
-        <a class="navbar-item" href="/">
-            <img src="{{ url_for('static', filename='logo.png') }}">
-            <strong class="is-sparta"
-                    style="font-family: 'Stylish', sans-serif;font-size: x-large;">SCRUM</strong>
+    <div class="navbar-brand" style="height: 64px;">
+        <a class="navbar-item" onclick="home()">
+            <span class=logo style="font-size: 30px;">SCRUM!</span>
         </a>
     </div>
 </nav>
-<section class="hero is-white" style="background-color: powderblue; ">
+<section class="hero is-white" style="background-color: RGBA(92, 188, 218, 0.5); ">
     <div class="hero-body"
          style="margin:30px auto 0px auto; min-width: 400px; background-color: white; border-radius:30px; width: 800px; ">
         <article class="media">
             <figure class="media-left" style="align-self: center;">
-                <a class="image is-96x96" href="#">
+                <div class="image is-96x96">
                     <img class="is-rounded" src="{{ url_for('static', filename=user_info.profile_pic_real) }}">
-                </a>
+                </div>
             </figure>
             <div class="media-content">
                 <div class="content">
@@ -192,10 +246,10 @@
                                                        name="resume">
                                                 <span class="file-cta"><span class="file-icon"><i
                                                         class="fa fa-upload"></i></span>
-                                <span class="file-label">파일 선택</span>
-                            </span>
+                                                         <span class="file-label">파일 선택</span></span>
+
                                                 <span id="file-name" class="file-name"
-                                                      style="width:100%;max-width:100%">{{ user_info.profile_pic }}</span>
+                                                      style="width:100%;max-width:100%">---사진을 선택하세요---{{ user_info.profile_pic }}</span>
                                             </label>
                                         </div>
 
@@ -233,18 +287,19 @@
             </div>
             </div>
             </section>
-            <section class="section" style="background-color: powderblue; text-align: center">
+            <section class="section" style="background-color: RGBA(92, 188, 218, 0.5); text-align: center">
             <p>
-                <i onclick="window.location.href='/'" class="fa fa-home" aria-hidden="true"></i>
-                홈 화면으로&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <i onclick="window.location.href='/'" class="fa fa-home" aria-hidden="true">홈 화면으로</i>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
-                <i  onclick='$("#modal-edit").addClass("is-active")' class="fa fa-pencil-square-o" aria-hidden="true"></i>
-                프로필 변경&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <i onclick='$("#modal-edit").addClass("is-active")' class="fa fa-pencil-square-o"
+                   aria-hidden="true">프로필 변경</i>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
-                <i onclick="window.location.href='/boards/form'" class="fa fa-book" aria-hidden="true"></i>
-                각오쓰기&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <i onclick="window.location.href='/boards/form'" class="fa fa-book" aria-hidden="true">각오쓰기</i>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
-                <i onclick="sign_out()" class="fa fa-sign-out" aria-hidden="true"></i>로그아웃
+                <i onclick="sign_out()" class="fa fa-sign-out" aria-hidden="true">로그아웃</i>
             </p>
             </article>
             </div>
@@ -260,7 +315,7 @@
 <section class="section" id="post-box">
     <div id="post-box" class="container">
         <article class="media"
-                 style="margin: 0px auto 20px auto; padding:20px; width: 800px; background-color:powderblue; border:solid; border-color: powderblue; border-radius: 40px;">
+                 style="margin: 0px auto 20px auto; padding:20px; width: 800px; background-color:RGBA(92, 188, 218, 0.5); border:solid; border-color: powderblue; border-radius: 40px;">
             <figure class="media-left">
                 <p class="image is-64x64">
                     <img src="https://bulma.io/images/placeholders/128x128.png">
@@ -274,9 +329,6 @@
                         각오 글 입력하세요.
                     </p>
                 </div>
-            </div>
-            <div class="media-right">
-                <i onclick="del()" class="fa fa-trash-o" aria-hidden="true"></i>
             </div>
         </article>
     </div>
